@@ -1,7 +1,7 @@
 variable "data_source" {
   type        = string
   description = "data source uri."
-  default     = "s3://nyc-tlc/'trip data'/"
+  default     = "s3://nyc-tlc/\"trip data\"/"
 }
 
 
@@ -15,5 +15,12 @@ variable "environment" {
 variable "project_name" {
   type        = string
   description = "short name for this project."
-  default     = "trip"
+  default     = "tripdata"
 }
+
+
+# variable "sync_commands" {
+#   default = [
+#       "fhvhv", "yellow", "green"
+#   ]
+# }

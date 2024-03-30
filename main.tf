@@ -15,7 +15,7 @@ module "raw_data" {
 
 module "augmented_data" {
   source      = "./s3"
-  data_tier   = "augmented"
+  data_tier   = "trusted"
   bucket_name = var.project_name
   environment = var.environment
 }
@@ -27,18 +27,36 @@ module "delivery_data" {
   environment = var.environment
 }
 
-module "sagemaker" {
-  source = "./sagemaker"
-  sage_maker_name = var.project_name
+
+module "s3_scripts" {
+  source = "./s3"
+  data_tier = "tripdata-etl-scripts"
+  bucket_name = var.project_name
   environment = var.environment
-  vpc_id = module.vpc_settings.vpc_id
-  subnet_ids = [module.vpc_settings.first_subnet_id]
-  notebook_names = ["data-processing"]
+  script_path = "etl_scripts/raw_to_trusted/green_job.ipynb"
 }
 
+locals {
+  datasets = ["green", "yellow", "fhvhv"]
+}
 
+# module "tripdata_etl" {
+#   count = length(local.datasets)
+#   source = "./tripdata_etl"
+#   job_name = "etl-tripdata-${local.datasets[count.index]}-${var.environment}"
+#   script_path = "scripts/${local.datasets[count.index]}"
+#   environment = var.environment
+#   bucket_name = module.s3_scripts.bucket_name
+# }
 
+resource "local_file" "sync_scripts" {
+  count    = length(local.datasets)
+  filename = "sync_${local.datasets[count.index]}.bat"
 
-
+  content = templatefile("${path.module}/sync_template.sh", {
+    sync_command  = local.datasets[count.index]
+    bucket_name = module.raw_data.bucket_name
+  })
+}
 
 
