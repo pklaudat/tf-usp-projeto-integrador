@@ -17,8 +17,8 @@ resource "aws_sagemaker_domain" "sagemaker" {
 resource "aws_sagemaker_notebook_instance" "notebooks" {
   count = length(var.notebook_names)
 
-  name            = var.notebook_names[count.index]
-  instance_type   = "ml.t2.medium"
-  role_arn        = data.aws_iam_role.lab_role.arn
+  name          = var.notebook_names[count.index]
+  instance_type = "ml.t2.medium"
+  role_arn      = data.aws_iam_role.lab_role.arn
   # lifecycle_config_name = "notebook-lifecycle-config"
 }
