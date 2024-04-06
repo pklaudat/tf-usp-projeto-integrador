@@ -17,5 +17,5 @@ output "first_subnet_id" {
 }
 
 output "vpc_id" {
-    value = data.aws_vpc.default.id
+  value = data.aws_vpc.default.id
 }
