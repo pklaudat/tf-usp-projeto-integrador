@@ -18,7 +18,7 @@ variable "environment" {
 }
 
 variable "script_path" {
-  type        = string
-  default     = ""
+  type        = list
+  default     = []
   description = "files to upload in the s3 bucket"
 }

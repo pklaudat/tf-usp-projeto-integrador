@@ -13,13 +13,13 @@ resource "aws_s3_bucket" "s3_bucket" {
 
 resource "null_resource" "upload_scripts" {
   # Only run the provisioner if the variable "scripts" is not equal to an empty string
-  count = var.script_path != "" ? 1 : 0
+  count = length(var.script_path)
   triggers = {
     "always": timestamp()
   }
   # Use local-exec provisioner to run shell commands locally
   provisioner "local-exec" {
-    command = "aws s3 cp ${var.script_path} s3://${aws_s3_bucket.s3_bucket.id}/${var.script_path}"
+    command = "aws s3 cp ${var.script_path[count.index]} s3://${aws_s3_bucket.s3_bucket.id}/${var.script_path[count.index]}"
   }
 }
 
