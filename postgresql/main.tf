@@ -60,7 +60,7 @@ resource "aws_db_instance" "postgresql" {
   apply_immediately        = true
   publicly_accessible      = true
   delete_automated_backups = true
-  backup_retention_period  = 1
+  backup_retention_period  = 0
   depends_on               = [aws_db_parameter_group.postgresql-db-group]
 
 }

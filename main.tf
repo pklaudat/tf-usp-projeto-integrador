@@ -55,7 +55,7 @@ resource "local_file" "ttd_etl_scripts" {
 
 module "s3_scripts" {
   source      = "./s3"
-  data_tier   = "tripdata-etl-scripts"
+  data_tier   = "etl-scripts"
   bucket_name = var.project_name
   environment = var.environment
   script_path = concat(local_file.rtt_etl_scripts[*].filename,local_file.ttd_etl_scripts[*].filename)
@@ -71,14 +71,19 @@ module "tripdata_etl" {
   default_arguments = {
     "--encryption-type": "false"
     "--enable-glue-datacatalog": "true"
-    "--job-language": "python-3"
+    "--job-language": "python3"
     "--TempDir": "s3://${module.s3_scripts.bucket_name}/temp/"
     "library-set": "analytics"
-    "RAW_BUCKET_NAME": module.raw_data.bucket_name
-    "TRUSTED_BUCKET_NAME": module.trusted_data.bucket_name
   }
   depends_on = [ module.s3_scripts ]
 }
+
+
+# resource "aws_glue_workflow" "workflow" {
+#   count = length(local.datasets)
+#   name = "workflow"
+# }
+
 
 resource "local_file" "sync_scripts" {
   count    = length(local.datasets)

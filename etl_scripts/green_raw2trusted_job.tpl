@@ -1,8 +1,4 @@
-%idle_timeout 2880
-%glue_version 4.0
-%worker_type G.1X
-%number_of_workers 5
-
+# %%
 import sys
 from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions
@@ -11,61 +7,152 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue.gluetypes import *
 from awsglue.dynamicframe import DynamicFrame
-from awsglue import DynamicFrame
 from pyspark.sql import functions as SqlFuncs
-  
+from pyspark.sql.functions import col, expr
+from pyspark.sql.types import StructType, StructField, LongType, TimestampType, DoubleType, StringType
+from awsgluedq.transforms import EvaluateDataQuality
+
+spark._jvm.java.lang.System.setProperty("spark.glue.JOB_NAME", "GreenRawToTrusted")
+spark._jvm.java.lang.System.setProperty("spark.glue.JOB_RUN_ID", "jr_1234")
+
+
 sc = SparkContext.getOrCreate()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 
-RAW_DATA_SOURCE="s3://raw-tripdata-prod-851725399217"
-TRUSTED_DATA_SOURCE="s3://trusted-tripdata-prod-851725399217"
+# data sources 
+RAW_DATA_SOURCE="s3://${raw_data_source}"
+TRUSTED_DATA_SOURCE="s3://${trusted_data_source}"
 
 
-# create dynamic frame using s3 as data source
-raw_green_dyf = glueContext.create_dynamic_frame.from_options(
-    format_options={}, 
-    connection_type="s3", 
-    format="parquet", 
-    connection_options={
-        "paths": [f"{RAW_DATA_SOURCE}/green/"], 
-        "recurse": True
-    }, 
-    transformation_ctx="RawGreen"
+schema = StructType([
+    StructField("VendorID", LongType(), True),
+    StructField("tpep_pickup_datetime", TimestampType(), True),
+    StructField("tpep_dropoff_datetime", TimestampType(), True),
+    StructField("passenger_count", DoubleType(), True),
+    StructField("trip_distance", DoubleType(), True),
+    StructField("store_and_fwd_flag", StringType(), True),
+    StructField("payment_type", LongType(), True),
+    StructField("fare_amount", DoubleType(), True),
+    StructField("extra", DoubleType(), True),
+    StructField("mta_tax", DoubleType(), True),
+    StructField("tip_amount", DoubleType(), True),
+    StructField("tolls_amount", DoubleType(), True),
+    StructField("improvement_surcharge", DoubleType(), True),
+    StructField("total_amount", DoubleType(), True),
+    StructField("congestion_surcharge", DoubleType(), True),
+])
+
+# pull the data
+raw_green_df = spark.read.schema(schema).parquet(f"{RAW_DATA_SOURCE}/green/")
+
+# change column names
+column_mapping = {
+    "VendorID": "empresa",
+    "tpep_pickup_datetime": "data_hora_inicio_viagem",
+    "tpep_dropoff_datetime": "data_hora_fim_viagem",
+    "passenger_count": "quantidade_passageiros",
+    "trip_distance": "distancia_viagem",
+    "PULocationID": "local_inicio_viagem_id",
+    "DOLocationID": "local_fim_viagem_id",
+    "RateCodeID": "codigo_tarifa",
+    "Payment_Type": "forma_pagamento",
+    "fare_amount": "tarifa",
+    "extra": "extras",
+    "MTA_tax": "imposto_mta",
+    "Improvement_surcharge": "taxa_aceno",
+    "tip_amount": "gorjeta",
+    "tolls_amount": "pedagios",
+    "total_amount": "custo_total_viagem"
+}
+
+# rename columns according to the mapping above
+for old_col, new_col in column_mapping.items():
+    raw_green_df = raw_green_df.withColumnRenamed(old_col, new_col)
+
+
+# drop duplicates and unuseful columns
+cleaned_green_df = raw_green_df.dropDuplicates()
+cleaned_green_df = cleaned_green_df.drop("store_and_fwd_flag")
+print(f"current schema for green tripdata:")
+
+# null field analysis
+columns_with_nulls = []
+
+# check which columns have null fields
+for col_name in cleaned_green_df.columns:
+    null_count = cleaned_green_df.where(col(col_name).isNull()).count()
+    if null_count > 0:
+        columns_with_nulls.append(col_name)
+        
+# replace null values in the taxa_cogestionamento field to 0
+cleaned_green_df = cleaned_green_df.fillna({'taxa_congestionamento': 0.0})
+# replace null values in taxa_aeroporto by 0
+cleaned_green_df = cleaned_green_df.fillna({'taxa_aeroporto': 0.0})
+# drop rows where codigo_tarifa is null
+cleaned_green_df = cleaned_green_df.na.drop(subset=['codigo_tarifa'])
+
+
+df = cleaned_green_df
+trusted_green_dyf = DynamicFrame.fromDF(df, glueContext, "TrustedgreenTripdata")
+
+# Create data quality ruleset
+ruleset = """Rules = [
+            ColumnValues "empresa" in [ 1, 2 ],
+            ColumnValues "codigo_tarifa" in [1, 2, 3, 4, 5, 6],
+            ColumnValues "forma_pagamento" in [1, 2, 3, 4, 5, 6]
+]"""
+
+
+dq_rows = EvaluateDataQuality().process_rows(
+        frame=trusted_green_dyf,
+        ruleset=ruleset,
+        publishing_options={
+            "dataQualityEvaluationContext": "dq_rows",
+            "enableDataQualityResultsPublishing": True}, 
+        additional_options={
+            "performanceTuning.caching":"CACHE_NOTHING",
+            "observations.scope":"ALL"
+        }
+    )
+# Script generated for node rowLevelOutcomes
+rowOutComes = SelectFromCollection.apply(dfc=dq_rows, key="rowLevelOutcomes", transformation_ctx="greenDataDq")
+ruleOutcomes = SelectFromCollection.apply(dfc=dq_rows, key="ruleOutcomes", transformation_ctx="greenDataRulesOutcome")
+
+df = rowOutComes.toDF()
+
+# Filter to keep only rows where the Outcome is "Passed"
+passed_results_df = df.filter(df['DataQualityEvaluationResult'] == 'Passed')
+for dq_column in ["DataQualityRulesPass", "DataQualityRulesFail", "DataQualityRulesSkip", "DataQualityEvaluationResult"]:
+    passed_results_df = passed_results_df.drop(dq_column)
+
+# Convert DataFrame back to DynamicFrame
+passed_results_dyf = DynamicFrame.fromDF(passed_results_df, glueContext, "passed_results_dyf")
+
+raw_to_trusted_dyf = glueContext.getSink(
+  path=f"{TRUSTED_DATA_SOURCE}/green",
+  connection_type="s3",
+  updateBehavior="UPDATE_IN_DATABASE",
+  partitionKeys=[],
+  compression="snappy",
+  enableUpdateCatalog=True,
+  transformation_ctx="trustedgreenTripdata",
+  format="parquet"
 )
 
-# remove null fields
+dq_trusted = glueContext.getSink(
+  path=f"{TRUSTED_DATA_SOURCE}/dq/green",
+  connection_type="s3",
+  updateBehavior="UPDATE_IN_DATABASE",
+  partitionKeys=[],
+  compression="snappy",
+  enableUpdateCatalog=True,
+  transformation_ctx="trustedgreenTripdata",
+  format="parquet"
+)
+# write trusted data in s3
+trusted_dyf = raw_to_trusted_dyf.writeFrame(passed_results_dyf)
 
-def _find_null_fields(ctx, schema, path, output, nullStringSet, nullIntegerSet, frame):
-    if isinstance(schema, StructType):
-        for field in schema:
-            new_path = path + "." if path != "" else path
-            output = _find_null_fields(ctx, field.dataType, new_path + field.name, output, nullStringSet, nullIntegerSet, frame)
-    elif isinstance(schema, ArrayType):
-        if isinstance(schema.elementType, StructType):
-            output = _find_null_fields(ctx, schema.elementType, path, output, nullStringSet, nullIntegerSet, frame)
-    elif isinstance(schema, NullType):
-        output.append(path)
-    else:
-        x, distinct_set = frame.toDF(), set()
-        for i in x.select(path).distinct().collect():
-            distinct_ = i[path.split('.')[-1]]
-            if isinstance(distinct_, list):
-                distinct_set |= set([item.strip() if isinstance(item, str) else item for item in distinct_])
-            elif isinstance(distinct_, str) :
-                distinct_set.add(distinct_.strip())
-            else:
-                distinct_set.add(distinct_)
-        if isinstance(schema, StringType):
-            if distinct_set.issubset(nullStringSet):
-                output.append(path)
-        elif isinstance(schema, IntegerType) or isinstance(schema, LongType) or isinstance(schema, DoubleType):
-            if distinct_set.issubset(nullIntegerSet):
-                output.append(path)
-    return output
-
-def drop_nulls(glueContext, frame, nullStringSet, nullIntegerSet, transformation_ctx) -> DynamicFrame:
-    nullColumns = _find_null_fields(frame.glue_ctx, frame.schema(), "", [], nullStringSet, nullIntegerSet, frame)
-    return DropFields.apply(frame=frame, paths=nullColumns, transformation_ctx=transformation_ctx)
-
+# write trusted data quality results
+trusted_dq = dq_trusted.writeFrame(ruleOutcomes)
