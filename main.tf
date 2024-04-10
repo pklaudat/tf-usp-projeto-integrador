@@ -20,6 +20,14 @@ module "trusted_data" {
   environment = var.environment
 }
 
+module "delivery_data" {
+  source      = "./s3"
+  data_tier   = "delivery"
+  bucket_name = var.project_name
+  environment = var.environment
+}
+
+
 locals {
   datasets = ["green", "yellow"]
 }
@@ -33,15 +41,15 @@ resource "local_file" "rtt_etl_scripts" {
   })
 }
 
-module "postgresql" {
-  source                            = "./postgresql"
-  postgresql_instance_type          = var.postgresql_instance_type
-  postgresql_password               = var.postgresql_password
-  postgresql_replicas               = var.postgresql_replicas
-  postgresql_replicas_instance_type = var.postgresql_replicas_instance_type
-  postgresql_storage_in_gb          = var.postgresql_storage_in_gb
-  environment                       = var.environment
-}
+# module "postgresql" {
+#   source                            = "./postgresql"
+#   postgresql_instance_type          = var.postgresql_instance_type
+#   postgresql_password               = var.postgresql_password
+#   postgresql_replicas               = var.postgresql_replicas
+#   postgresql_replicas_instance_type = var.postgresql_replicas_instance_type
+#   postgresql_storage_in_gb          = var.postgresql_storage_in_gb
+#   environment                       = var.environment
+# }
 
 
 resource "local_file" "ttd_etl_scripts" {
@@ -49,7 +57,7 @@ resource "local_file" "ttd_etl_scripts" {
   filename =  "etl_scripts/${local.datasets[count.index]}_trusted2delivery_job.py"
   content = templatefile("etl_scripts/${local.datasets[count.index]}_trusted2delivery_job.tpl", {
     trusted_data_source = module.trusted_data.bucket_name
-    delivery_data_source = module.postgresql.postgresql_connection_string
+    delivery_data_source = module.delivery_data.bucket_name
   })
 }
 

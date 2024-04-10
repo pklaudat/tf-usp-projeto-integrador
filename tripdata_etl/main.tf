@@ -10,7 +10,7 @@ resource "aws_glue_job" "etl_job" {
   execution_property {
     max_concurrent_runs = 1
   }
-  execution_class = "FLEX"
+  # execution_class = "FLEX"
   worker_type = "G.1X"
   number_of_workers = 2
   command {
