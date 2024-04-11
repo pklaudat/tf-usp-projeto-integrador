@@ -86,11 +86,13 @@ module "tripdata_etl" {
   depends_on = [ module.s3_scripts ]
 }
 
-
-# resource "aws_glue_workflow" "workflow" {
-#   count = length(local.datasets)
-#   name = "workflow"
-# }
+module "data_analytics" {
+  source = "./athena"
+  project_name = var.project_name
+  bucket_path = "${module.delivery_data.bucket_name}/yellow"
+  output_bucket = "${module.s3_scripts.bucket_name}"
+  environment = var.environment
+}
 
 
 resource "local_file" "sync_scripts" {
