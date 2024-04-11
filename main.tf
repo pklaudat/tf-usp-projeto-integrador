@@ -41,16 +41,6 @@ resource "local_file" "rtt_etl_scripts" {
   })
 }
 
-# module "postgresql" {
-#   source                            = "./postgresql"
-#   postgresql_instance_type          = var.postgresql_instance_type
-#   postgresql_password               = var.postgresql_password
-#   postgresql_replicas               = var.postgresql_replicas
-#   postgresql_replicas_instance_type = var.postgresql_replicas_instance_type
-#   postgresql_storage_in_gb          = var.postgresql_storage_in_gb
-#   environment                       = var.environment
-# }
-
 
 resource "local_file" "ttd_etl_scripts" {
   count = length(local.datasets)
@@ -105,4 +95,45 @@ resource "local_file" "sync_scripts" {
   })
 }
 
+
+resource "aws_glue_workflow" "workflow" {
+  name = "workflow-${var.project_name}-${var.environment}"
+  description = "Tripdata NYC TLC workflow"
+}
+
+
+resource "aws_glue_trigger" "trigger_etl_step1" {
+  name          = "start-${var.project_name}-etl"
+  type          = "ON_DEMAND"
+  workflow_name = aws_glue_workflow.workflow.name
+  actions {
+    job_name   = module.tripdata_etl[1].etl_job_name
+    arguments = {}
+  }
+  actions {
+    job_name = module.tripdata_etl[0].etl_job_name
+    arguments =  {}
+  }
+}
+
+
+resource "aws_glue_trigger" "trigger_etl_step2" {
+  name          = "deliver-${var.project_name}-data"
+  type          = "CONDITIONAL"
+  workflow_name = aws_glue_workflow.workflow.name
+  predicate {
+    conditions {
+      job_name   = module.tripdata_etl[0].etl_job_name
+      state      = "SUCCEEDED"
+    }
+    conditions {
+      job_name   = module.tripdata_etl[1].etl_job_name
+      state      = "SUCCEEDED"
+    }
+  }
+  actions {
+    job_name   = module.tripdata_etl[3].etl_job_name
+    arguments = {}
+  }
+}
 
