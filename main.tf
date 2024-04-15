@@ -43,9 +43,9 @@ resource "local_file" "rtt_etl_scripts" {
 
 
 resource "local_file" "ttd_etl_scripts" {
-  count = length(local.datasets)
-  filename =  "etl_scripts/${local.datasets[count.index]}_trusted2delivery_job.py"
-  content = templatefile("etl_scripts/${local.datasets[count.index]}_trusted2delivery_job.tpl", {
+  count = 1
+  filename =  "etl_scripts/trusted2delivery_job.py"
+  content = templatefile("etl_scripts/trusted2delivery_job.tpl", {
     trusted_data_source = module.trusted_data.bucket_name
     delivery_data_source = module.delivery_data.bucket_name
   })
@@ -79,8 +79,8 @@ module "tripdata_etl" {
 module "data_analytics" {
   source = "./athena"
   project_name = var.project_name
-  bucket_path = "${module.delivery_data.bucket_name}/yellow"
-  output_bucket = "${module.s3_scripts.bucket_name}"
+  bucket_path = "${module.delivery_data.bucket_name}/tripdata"
+  output_bucket = "${module.s3_scripts.bucket_name}/tripdata_results"
   environment = var.environment
 }
 
@@ -132,7 +132,7 @@ resource "aws_glue_trigger" "trigger_etl_step2" {
     }
   }
   actions {
-    job_name   = module.tripdata_etl[3].etl_job_name
+    job_name   = module.tripdata_etl[2].etl_job_name
     arguments = {}
   }
 }

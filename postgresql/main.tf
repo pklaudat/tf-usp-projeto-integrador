@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    postgresql = {
+      source = "cyrilgdn/postgresql"
+      version = ">= 1.10.0"
+    }
+  }
+}
+
 resource "aws_security_group" "postgresql-sg" {
   name        = "postgresql-${data.aws_region.current.name}-${var.environment}-sg"
   description = "Security Group used to control ingress and egress in postgresql rds instances."
@@ -78,6 +87,37 @@ resource "aws_db_instance" "postgresql-replicas" {
   depends_on             = [aws_db_parameter_group.postgresql-db-group]
   replicate_source_db    = aws_db_instance.postgresql.identifier
   count                  = var.postgresql_replicas
+}
+
+resource "null_resource" "create_tables" {
+  # This null_resource serves as a trigger for the local-exec provisioner
+  triggers = {
+    always_run = "${timestamp()}"
+  }
+
+  provisioner "local-exec" {
+    command = <<EOF
+      # Replace the following with your SQL commands to create tables
+      psql -h ${aws_db_instance.postgresql.endpoint} -U postgresqluser -d postgresql${var.environment} -p ${var.postgresql_password} -c"
+        CREATE TABLE employees (
+          employee_id SERIAL PRIMARY KEY,
+          first_name VARCHAR(50),
+          last_name VARCHAR(50),
+          email VARCHAR(100),
+          department_id INT,
+          hire_date DATE,
+          salary DECIMAL(10, 2)
+        );
+
+        CREATE TABLE departments (
+          department_id SERIAL PRIMARY KEY,
+          department_name VARCHAR(100),
+          manager_id INT,
+          location VARCHAR(100)
+        );
+      "
+EOF
+  }
 }
 
 

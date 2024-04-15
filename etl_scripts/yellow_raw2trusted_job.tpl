@@ -82,6 +82,7 @@ for old_col, new_col in column_mapping.items():
 # drop duplicates and unuseful columns
 cleaned_yellow_df = raw_yellow_df.dropDuplicates()
 cleaned_yellow_df = cleaned_yellow_df.drop("store_and_fwd_flag")
+cleaned_yellow_df = cleaned_yellow_df.withColumn('tipo_taxi', SqlFuncs.lit('yellow'))
 print(f"current schema for yellow tripdata:")
 
 # null field analysis
@@ -99,9 +100,12 @@ cleaned_yellow_df = cleaned_yellow_df.fillna({'taxa_congestionamento': 0.0})
 cleaned_yellow_df = cleaned_yellow_df.fillna({'taxa_aeroporto': 0.0})
 # drop rows where codigo_tarifa is null
 cleaned_yellow_df = cleaned_yellow_df.na.drop(subset=['codigo_tarifa'])
+cleaned_yellow_df = cleaned_yellow_df.filter((col('data_hora_inicio_viagem') >= '2020-01-01') & (col('data_hora_inicio_viagem') <= '2022-12-31'))
+cleaned_yellow_df = cleaned_yellow_df.filter((col('data_hora_fim_viagem') >= '2020-01-01') & (col('data_hora_fim_viagem') <= '2022-12-31'))
 
 
 df = cleaned_yellow_df
+
 trusted_yellow_dyf = DynamicFrame.fromDF(df, glueContext, "TrustedYellowTripdata")
 
 # Create data quality ruleset
@@ -128,6 +132,7 @@ rowOutComes = SelectFromCollection.apply(dfc=dq_rows, key="rowLevelOutcomes", tr
 ruleOutcomes = SelectFromCollection.apply(dfc=dq_rows, key="ruleOutcomes", transformation_ctx="yellowDataRulesOutcome")
 
 df = rowOutComes.toDF()
+
 
 # Filter to keep only rows where the Outcome is "Passed"
 passed_results_df = df.filter(df['DataQualityEvaluationResult'] == 'Passed')
