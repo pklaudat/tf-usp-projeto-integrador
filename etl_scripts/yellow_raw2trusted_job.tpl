@@ -100,8 +100,8 @@ cleaned_yellow_df = cleaned_yellow_df.fillna({'taxa_congestionamento': 0.0})
 cleaned_yellow_df = cleaned_yellow_df.fillna({'taxa_aeroporto': 0.0})
 # drop rows where codigo_tarifa is null
 cleaned_yellow_df = cleaned_yellow_df.na.drop(subset=['codigo_tarifa'])
-cleaned_yellow_df = cleaned_yellow_df.filter((col('data_hora_inicio_viagem') >= '2020-01-01') & (col('data_hora_inicio_viagem') <= '2022-12-31'))
-cleaned_yellow_df = cleaned_yellow_df.filter((col('data_hora_fim_viagem') >= '2020-01-01') & (col('data_hora_fim_viagem') <= '2022-12-31'))
+cleaned_yellow_df = cleaned_yellow_df.filter((col('data_hora_inicio_viagem') >= '2021-01-01') & (col('data_hora_inicio_viagem') <= '2022-12-31'))
+cleaned_yellow_df = cleaned_yellow_df.filter((col('data_hora_fim_viagem') >= '2021-01-01') & (col('data_hora_fim_viagem') <= '2022-12-31'))
 
 
 df = cleaned_yellow_df

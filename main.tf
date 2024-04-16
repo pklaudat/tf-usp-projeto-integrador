@@ -67,7 +67,7 @@ module "tripdata_etl" {
   environment = var.environment
   bucket_name = module.s3_scripts.bucket_name
   default_arguments = {
-    "--encryption-type": "false"
+    "--encryption-type": "sse-s3"
     "--enable-glue-datacatalog": "true"
     "--job-language": "python3"
     "--TempDir": "s3://${module.s3_scripts.bucket_name}/temp/"

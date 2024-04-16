@@ -144,8 +144,8 @@ cleaned_green_df.head(5)
 
 # drop rows where codigo_tarifa is null
 cleaned_green_df = cleaned_green_df.na.drop(subset=['codigo_tarifa'])
-cleaned_green_df = cleaned_green_df.filter((col('data_hora_inicio_viagem') >= '2020-01-01') & (col('data_hora_inicio_viagem') <= '2022-12-31'))
-cleaned_green_df = cleaned_green_df.filter((col('data_hora_fim_viagem') >= '2020-01-01') & (col('data_hora_fim_viagem') <= '2022-12-31'))
+cleaned_green_df = cleaned_green_df.filter((col('data_hora_inicio_viagem') >= '2021-01-01') & (col('data_hora_inicio_viagem') <= '2022-12-31'))
+cleaned_green_df = cleaned_green_df.filter((col('data_hora_fim_viagem') >= '2021-01-01') & (col('data_hora_fim_viagem') <= '2022-12-31'))
 cleaned_green_df.count()
 
 

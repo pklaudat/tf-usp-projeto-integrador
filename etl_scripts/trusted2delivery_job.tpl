@@ -1,78 +1,50 @@
-# %%
 import sys
 from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
-from awsglue.gluetypes import *
-from awsglue.dynamicframe import DynamicFrame
-from pyspark.sql import functions as SqlFuncs
-from pyspark.sql.functions import col, expr
-from pyspark.sql.types import StructType, StructField, LongType, TimestampType, DoubleType, StringType, IntegerType
-from awsgluedq.transforms import EvaluateDataQuality
-
-
-
-sc = SparkContext.getOrCreate()
-glueContext = GlueContext(sc)
-spark = glueContext.spark_session
-job = Job(glueContext)
-spark._jvm.java.lang.System.setProperty("spark.glue.JOB_NAME", "YellowRawToTrusted")
-spark._jvm.java.lang.System.setProperty("spark.glue.JOB_RUN_ID", "jr_1234")
-
-
+from awsglue import DynamicFrame
 
 # data sources 
 DELIVERY_DATA_SOURCE="s3://${delivery_data_source}"
 TRUSTED_DATA_SOURCE="s3://${trusted_data_source}"
 
-# retrieve yellow trusted data
-trusted_yellow_dyf = glueContext.create_dynamic_frame.from_options(
-    format_options={},
-    connection_type="s3",
-    format="parquet",
-    connection_options={
-        "paths": [f"{TRUSTED_DATA_SOURCE}/yellow/"],
-        "recurse": True,
-    },
-    transformation_ctx="TrustedYellowTripdata",
-)
 
-# retrieve green trusted data
-trusted_green_dyf = glueContext.create_dynamic_frame.from_options(
-    format_options={},
-    connection_type="s3",
-    format="parquet",
-    connection_options={
-        "paths": [f"{TRUSTED_DATA_SOURCE}/green/"],
-        "recurse": True,
-    },
-    transformation_ctx="TrustedGreenTripdata",
-)
+def sparkUnion(glueContext, unionType, mapping, transformation_ctx) -> DynamicFrame:
+    for alias, frame in mapping.items():
+        frame.toDF().createOrReplaceTempView(alias)
+    result = spark.sql("(select * from source1) UNION " + unionType + " (select * from source2)")
+    return DynamicFrame.fromDF(result, glueContext, transformation_ctx)
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
 
-yellow_df = trusted_yellow_dyf.toDF()
-green_df = trusted_green_dyf.toDF()
+# Script generated for node Amazon S3
+AmazonS3_node1713221520853 = glueContext.create_dynamic_frame.from_options(format_options={}, connection_type="s3", format="parquet", connection_options={"paths": [f"{TRUSTED_DATA_SOURCE}/green/"]}, transformation_ctx="AmazonS3_node1713221520853")
 
-green_df = green_df.drop("tipo_viagem")
-green_df = green_df.withColumn("taxa_aeroporto", SqlFuncs.lit(0.0))
-print(len(green_df.columns))
-print(len(yellow_df.columns))
+# Script generated for node Amazon S3
+AmazonS3_node1713223104254 = glueContext.create_dynamic_frame.from_options(format_options={}, connection_type="s3", format="parquet", connection_options={"paths": [f"{TRUSTED_DATA_SOURCE}/yellow/"], "recurse": True}, transformation_ctx="AmazonS3_node1713223104254")
 
-df = yellow_df.union(green_df)
-df.count()
+# Script generated for node Schema Matcher for Union
+SchemaMatcherforUnion_node1713223184318 = ApplyMapping.apply(frame=AmazonS3_node1713221520853, mappings=[("empresa", "long", "empresa", "long"), ("data_hora_inicio_viagem", "timestamp", "data_hora_inicio_viagem", "timestamp"), ("data_hora_fim_viagem", "timestamp", "data_hora_fim_viagem", "timestamp"), ("codigo_tarifa", "double", "codigo_tarifa", "double"), ("local_inicio_viagem_id", "long", "local_inicio_viagem_id", "long"), ("local_fim_viagem_id", "long", "local_fim_viagem_id", "long"), ("quantidade_passageiros", "double", "quantidade_passageiros", "double"), ("distancia_viagem", "double", "distancia_viagem", "double"), ("tarifa", "double", "tarifa", "double"), ("extras", "double", "extras", "double"), ("imposto_mta", "double", "imposto_mta", "double"), ("gorjeta", "double", "gorjeta", "double"), ("pedagios", "double", "pedagios", "double"), ("taxa_aceno", "double", "taxa_aceno", "double"), ("custo_total_viagem", "double", "custo_total_viagem", "double"), ("forma_pagamento", "double", "forma_pagamento", "long"), ("taxa_congestionamento", "double", "taxa_congestionamento", "double"), ("tipo_taxi", "string", "tipo_taxi", "string")], transformation_ctx="SchemaMatcherforUnion_node1713223184318")
 
-delivery_dyf = DynamicFrame.fromDF(df, glueContext, "delivery_dyf")
+# Script generated for node Schema Matcher for Union
+SchemaMatcherforUnion_node1713223184319 = ApplyMapping.apply(frame=AmazonS3_node1713223104254, mappings=[("empresa", "long", "empresa", "long"), ("data_hora_inicio_viagem", "timestamp", "data_hora_inicio_viagem", "timestamp"), ("data_hora_fim_viagem", "timestamp", "data_hora_fim_viagem", "timestamp"), ("quantidade_passageiros", "double", "quantidade_passageiros", "double"), ("distancia_viagem", "double", "distancia_viagem", "double"), ("codigo_tarifa", "double", "codigo_tarifa", "double"), ("local_inicio_viagem_id", "long", "local_inicio_viagem_id", "long"), ("local_fim_viagem_id", "long", "local_fim_viagem_id", "long"), ("forma_pagamento", "long", "forma_pagamento", "long"), ("tarifa", "double", "tarifa", "double"), ("extras", "double", "extras", "double"), ("imposto_mta", "double", "imposto_mta", "double"), ("gorjeta", "double", "gorjeta", "double"), ("pedagios", "double", "pedagios", "double"), ("taxa_aceno", "double", "taxa_aceno", "double"), ("custo_total_viagem", "double", "custo_total_viagem", "double"), ("taxa_congestionamento", "double", "taxa_congestionamento", "double"), ("tipo_taxi", "string", "tipo_taxi", "string")], transformation_ctx="SchemaMatcherforUnion_node1713223184319")
 
-delivery_tripdata = glueContext.getSink(
-  path=f"{DELIVERY_DATA_SOURCE}/tripdata",
-  connection_type="s3",
-  updateBehavior="UPDATE_IN_DATABASE",
-  partitionKeys=[],
-  compression="snappy",
-  enableUpdateCatalog=True,
-  transformation_ctx="TripDataDelivery",
-  format="parquet"
-)
-# write trusted data in s3
-delivery = delivery_tripdata.writeFrame(delivery_dyf)
+# Script generated for node Union
+Union_node1713223167072 = sparkUnion(glueContext, unionType = "ALL", mapping = {"source1": SchemaMatcherforUnion_node1713223184319, "source2": SchemaMatcherforUnion_node1713223184318}, transformation_ctx = "Union_node1713223167072")
+
+# Script generated for node Change Schema
+ChangeSchema_node1713225106860 = ApplyMapping.apply(frame=Union_node1713223167072, mappings=[("empresa", "long", "empresa", "long"), ("data_hora_inicio_viagem", "timestamp", "data_hora_inicio_viagem", "timestamp"), ("data_hora_fim_viagem", "timestamp", "data_hora_fim_viagem", "timestamp"), ("quantidade_passageiros", "double", "quantidade_passageiros", "double"), ("distancia_viagem", "double", "distancia_viagem", "double"), ("codigo_tarifa", "double", "codigo_tarifa", "double"), ("local_inicio_viagem_id", "double", "local_inicio_viagem_id", "long"), ("local_fim_viagem_id", "double", "local_fim_viagem_id", "long"), ("forma_pagamento", "double", "forma_pagamento", "long"), ("tarifa", "double", "tarifa", "double"), ("extras", "double", "extras", "double"), ("imposto_mta", "double", "imposto_mta", "double"), ("gorjeta", "double", "gorjeta", "double"), ("pedagios", "double", "pedagios", "double"), ("taxa_aceno", "double", "taxa_aceno", "double"), ("custo_total_viagem", "double", "custo_total_viagem", "double"), ("taxa_congestionamento", "double", "taxa_congestionamento", "double"), ("tipo_taxi", "string", "tipo_taxi", "string")], transformation_ctx="ChangeSchema_node1713225106860")
+
+# Script generated for node Amazon S3
+AmazonS3_node1713223345043 = glueContext.write_dynamic_frame.from_options(frame=ChangeSchema_node1713225106860, connection_type="s3", format="glueparquet", connection_options={"path": f"{DELIVERY_DATA_SOURCE}/tripdata/", "partitionKeys": []}, format_options={"compression": "snappy"}, transformation_ctx="AmazonS3_node1713223345043")
+
+job.commit()
+
+
+

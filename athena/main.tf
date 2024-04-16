@@ -8,8 +8,7 @@ resource "aws_athena_workgroup" "example" {
 
 resource "aws_glue_catalog_database" "glue_database" {
   name = "db${var.project_name}${var.environment}"
-  location_uri = var.output_bucket
-
+  location_uri = "s3://${var.output_bucket}"
 }
 
 resource "aws_glue_catalog_table" "example" {
@@ -97,9 +96,13 @@ resource "aws_glue_catalog_table" "example" {
       name = "taxa_congestionamento"
       type = "double"
     }
+    # columns {
+    #   name = "taxa_aeroporto"
+    #   type = "double"
+    # }
     columns {
-      name = "taxa_aeroporto"
-      type = "double"
+      name = "tipo_taxi"
+      type = "string"
     }
   }
 }
